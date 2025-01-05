@@ -1,1 +1,0 @@
-# PitVQA-Anticipation
