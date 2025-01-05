@@ -2,8 +2,8 @@
 
 ## Time
 ### Step
-#### Q: How much time left for current step (or '<step>')?
-#### A: Approximately 13.8 minutes left for '<step>'  
+#### Q: How much time left for current step (or 'step')?
+#### A: Approximately 13.8 minutes left for 'step'  
 
 ### Phase
 #### Q: 
