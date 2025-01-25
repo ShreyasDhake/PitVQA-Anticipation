@@ -1,0 +1,14 @@
+What is the surgical phase shown in the image?|nasal_sphenoid
+What is the surgical step shown in this frame?|nasal_corridor_creation
+What is the surgical operation performed in the image?|The middle and superior turbinates are laterally displaced
+What is the next surgical phase?|sellar
+What is the next surgical step?|anterior_sphenoidotomy
+What instrument is used in the bottom-left of the image?|suction
+What surgical activity is performing by the instrument suction?|The middle and superior turbinates are laterally displaced
+Where is the surgical instrument suction tip located in the image?|bottom-left
+How many instruments are present in the image?|one
+What are the remaining surgical phases?|The remaining surgical phases are sellar, closure
+How long is left for the current phase?|About 112.0 minutes left for the current phase
+How long is left for the current step?|About 2.05 minutes left for the current step
+What is the estimated remaining time for the entire surgery?|The estimated remaining time for the entire surgery is 111.0 minutes
+What are the remaining steps?|The remaining steps are: anterior_sphenoidotomy, septum_displacement, sphenoid_sinus_clearance, haemostasis, sellotomy, durotomy, tumour_excision, synthetic_graft_placement, fat_graft_placement, dural_sealant, debris_clearance, operation_ended
