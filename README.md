@@ -24,4 +24,4 @@ python inference.py --seq_frames 8
 ```
 
 ## Acknowlwdgement
-The implementation of SurgicalViVQA relies on resources from  <a href="https://github.com/huggingface/transformers">Huggingface Transformers</a>, <a href="https://github.com/huggingface/peft">PEFT</a>, <a href="https://github.com/xuguohai/X-CLIP">X-CLIP</a>. We thank the original authors for their open-sourcing. 
+The implementation of SurgicalViVQA relies on resources from  <a href="https://github.com/huggingface/transformers">Huggingface Transformers</a>, <a href="https://github.com/huggingface/peft">PEFT</a>, <a href="https://github.com/xuguohai/X-CLIP">X-CLIP</a>, <a href="https://github.com/HRL-Mike/PitVQA-Plus">PitVQA++</a>. We thank the original authors for their open-sourcing. 
