@@ -15,12 +15,12 @@ The pretrained weights will be releases upon the acceptance of the paper
 
 ## Training Command
 ```
-python main.py
+python main.py --seq_frames 8
 ```
 
 ## Inference Command
 ```
-python inference.py
+python inference.py --seq_frames 8
 ```
 
 ## Acknowlwdgement
