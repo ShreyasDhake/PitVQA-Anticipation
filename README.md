@@ -2,10 +2,6 @@
 
 ![Description](assets/model.png)
 
-<div align='center'>
-<img src='https://github.com/ShreyasDhake/PitVQA-Anticipation/blob/main/assests/surgicalvivqa.png' width=750>
-</div>
-
 ## Abstract
 
 **Purpose:** Anticipating forthcoming surgical events is vital for real-time assistance in endonasal transsphenoidal pituitary surgery, where visibility is limited and workflow changes rapidly. Most visual question answering (VQA) systems reason on isolated frames with static vision--language alignment, providing limited support for forecasting forthcoming steps, instrument needs, or remaining procedure time. Existing surgical VQA datasets likewise focus primarily on the current scene rather than the near future.
