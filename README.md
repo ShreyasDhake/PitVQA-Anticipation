@@ -23,13 +23,15 @@ The pretrained weights will be releases upon the acceptance of the paper
 ## Training Command
 
 ```
-python main.py --seq_frames 8
+python main.py --language_model gpt2 --seq_frames 8
+python main.py --language_model qwen --seq_frames 8
 ```
 
 ## Inference Command
 
 ```
-python inference.py --seq_frames 8
+python inference.py --language_model gpt2 --seq_frames 8
+python inference.py --language_model qwen --seq_frames 8
 ```
 
 ## Acknowlwdgement

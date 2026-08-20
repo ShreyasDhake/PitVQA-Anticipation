@@ -137,6 +137,7 @@ def get_arg():
     parser.add_argument('--workers',        type=int,   default=8,    help='for data-loading')
     parser.add_argument('--random_seed',    type=int,   default=42,   help='random seed')
     parser.add_argument('--seq_length',     type=int,   default=120,   help='sequence length for question and answer')
+    parser.add_argument('--seq_frames',     type=int,   default=8,     help='number of contiguous video frames')
     parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
     parser.add_argument(
         '--language_model', '--lm',
@@ -187,7 +188,8 @@ if __name__ == '__main__':
         split='train',
         train_seq=train_seq,
         val_seq=val_seq,
-        processor=processor
+        processor=processor,
+        sequence_length=args.seq_frames
     )
     train_dataloader = DataLoader(dataset=train_dataset, batch_size=args.batch_size,
                                 shuffle=True, num_workers=args.workers, pin_memory=True,
@@ -198,7 +200,8 @@ if __name__ == '__main__':
         split='val',
         train_seq=train_seq,
         val_seq=val_seq,
-        processor=processor
+        processor=processor,
+        sequence_length=args.seq_frames
     )
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size,
                                 shuffle=False, num_workers=args.workers, pin_memory=True,

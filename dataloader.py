@@ -4,10 +4,10 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 
 class VideoQADataset(Dataset):
-    def __init__(self, image_root, qa_root, split='train', train_seq=None, val_seq=None, processor=None):
+    def __init__(self, image_root, qa_root, split='train', train_seq=None, val_seq=None, processor=None, sequence_length=8):
         self.image_root = image_root
         self.qa_root = qa_root
-        self.sequence_length = 8
+        self.sequence_length = sequence_length
         self.processor = processor
         self.sequences = train_seq if split == 'train' else val_seq
         self.samples = self._build_samples()

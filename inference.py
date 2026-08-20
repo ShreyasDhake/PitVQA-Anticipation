@@ -130,6 +130,7 @@ def inference(args, val_loader, model, tokenizer, device):
 def get_arg():
     parser = argparse.ArgumentParser(description='VisualQuestionAnswerGeneration-Inference')
     parser.add_argument('--seq_length',     type=int,   default=120,   help='sequence length for decoding')
+    parser.add_argument('--seq_frames',     type=int,   default=8,     help='number of contiguous video frames')
     parser.add_argument('--batch_size',     type=int,   default=2,   help='batch size (will be doubled for inference loader)')
     parser.add_argument('--workers',        type=int,   default=8,    help='for data-loading')
     parser.add_argument('--checkpoint_dir', default='Checkpoints/',  help='path to checkpoint')
@@ -176,7 +177,8 @@ if __name__ == "__main__":
         split='val',
         train_seq=train_seq,
         val_seq=val_seq,
-        processor=processor
+        processor=processor,
+        sequence_length=args.seq_frames
     )
     val_dataloader = DataLoader(dataset=val_dataset, batch_size=args.batch_size*2,
                                 shuffle=False, num_workers=args.workers, pin_memory=True,
