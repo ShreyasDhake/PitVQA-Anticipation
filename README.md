@@ -1,4 +1,4 @@
-# Anticipating Surgical Events via GRU-Gated Temporal Cross-Attention in Video Question Answering
+# SurgAnt-ViVQA: Learning to Anticipate Surgical Events through GRU-Driven Temporal Cross-Attention
 
 ![Description](assets/model.png)
 
