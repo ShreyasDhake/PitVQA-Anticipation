@@ -1,19 +1,21 @@
 import os
 import torch
-import torch.nn as nn
 import argparse
-import numpy as np
 import random
 import warnings
 import evaluate
 from tqdm import tqdm
 
-from transformers import GPT2Tokenizer, XCLIPProcessor
-from peft import TaskType, LoraConfig
+from transformers import XCLIPProcessor
 
 from torch.utils.data import DataLoader
 from dataloader import VideoQADataset, collate_qa_clipwise
-from model import PitVQAGen
+from model import (
+    LANGUAGE_MODEL_CONFIGS,
+    PitVQAGen,
+    add_artifact_prefix,
+    create_lora_config,
+)
 
 warnings.filterwarnings('ignore')
 
@@ -130,38 +132,43 @@ def get_arg():
     parser.add_argument('--seq_length',     type=int,   default=120,   help='sequence length for decoding')
     parser.add_argument('--batch_size',     type=int,   default=2,   help='batch size (will be doubled for inference loader)')
     parser.add_argument('--workers',        type=int,   default=8,    help='for data-loading')
-    parser.add_argument('--checkpoint_dir', default='Cross_Attention/',  help='path to checkpoint')
-    parser.add_argument('--best_ckpt_name', default='SurgicalViVQA.pth', help='checkpoint filename')
-    args = parser.parse_args([])
+    parser.add_argument('--checkpoint_dir', default='Checkpoints/',  help='path to checkpoint')
+    parser.add_argument('--best_ckpt_name', default='SurgAnt.pth', help='checkpoint filename')
+    parser.add_argument(
+        '--language_model', '--lm',
+        choices=LANGUAGE_MODEL_CONFIGS.keys(),
+        default='gpt2',
+        help='causal language-model backbone',
+    )
+    args = parser.parse_args()
     return args
 
 if __name__ == "__main__":
     args = get_arg()
 
-    lora_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        r=8,
-        lora_alpha=16,
-        lora_dropout=0.1,
-        target_modules=["c_attn", "c_proj"]
-    )
+    lora_config = create_lora_config(args.language_model)
 
-    model = PitVQAGen(peft_config=lora_config)
-    save_dir = f'{args.checkpoint_dir}/{args.best_ckpt_name}'
+    model = PitVQAGen(
+        language_model=args.language_model,
+        peft_config=lora_config,
+    )
+    checkpoint_name = add_artifact_prefix(
+        args.best_ckpt_name, args.language_model
+    )
+    save_dir = os.path.join(args.checkpoint_dir, checkpoint_name)
     model.load_state_dict(torch.load(save_dir, map_location=device))
     model.to(device)
     model.eval()
 
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer.pad_token = tokenizer.eos_token
+    tokenizer = model.tokenizer
 
     processor = XCLIPProcessor.from_pretrained("microsoft/xclip-base-patch32")
 
     # Same dataset splits/paths as training script
     train_seq = ['01', '03', '04', '05', '07', '08', '09', '10', '11', '14','15', '16', '17', '18', '19', '20', '21', '22', '23', '25']
     val_seq = ['02', '06', '12','13', '24']  
-    image_root = '/SAN/medic/surgicalLLM/content/PitVQA/datasets/PitVQA_Anticipation-25/images'
-    qa_root = '/SAN/medic/surgicalLLM/content/PitVQA/datasets/PitVQA_Anticipation-25/QA_Anticipation'
+    image_root = '.../PitVQA_Anticipation/images'
+    qa_root = '.../PitVQA_Anticipation/QA_Anticipation'
 
     val_dataset = VideoQADataset(
         image_root=image_root,
@@ -178,11 +185,13 @@ if __name__ == "__main__":
     references, hypotheses  = inference(args, val_loader=val_dataloader, model=model, tokenizer=tokenizer, device=device)
 
     os.makedirs(args.checkpoint_dir, exist_ok=True)
-    with open(f'{args.checkpoint_dir}/SurgicalViVQA_ref.txt', 'w') as f:
+    ref_name = add_artifact_prefix('SurgAnt_ref.txt', args.language_model)
+    hyp_name = add_artifact_prefix('SurgAnt_hyp.txt', args.language_model)
+    with open(os.path.join(args.checkpoint_dir, ref_name), 'w') as f:
         for ref in references:
             f.write(ref + '\n')
 
-    with open(f'{args.checkpoint_dir}/SurgicalViVQA_hyp.txt', 'w') as f:
+    with open(os.path.join(args.checkpoint_dir, hyp_name), 'w') as f:
         for hyp in hypotheses:
             f.write(hyp + '\n')
 

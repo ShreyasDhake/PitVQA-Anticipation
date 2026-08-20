@@ -1,7 +1,60 @@
 import torch
 import torch.nn as nn
-from transformers import GPT2Tokenizer, GPT2LMHeadModel, XCLIPModel
-from peft import get_peft_model
+from transformers import AutoModelForCausalLM, AutoTokenizer, XCLIPModel
+from peft import get_peft_model, LoraConfig, TaskType
+
+
+LANGUAGE_MODEL_CONFIGS = {
+    "gpt2": {
+        "pretrained_name": "gpt2",
+        "artifact_prefix": "GPT2",
+        "lora_target_modules": ["c_attn", "c_proj"],
+    },
+    "qwen": {
+        "pretrained_name": "Qwen/Qwen3-0.6B",
+        "artifact_prefix": "Qwen",
+        "lora_target_modules": ["q_proj", "k_proj", "v_proj"],
+    },
+}
+
+
+def get_language_model_config(language_model):
+    try:
+        return LANGUAGE_MODEL_CONFIGS[language_model]
+    except KeyError as error:
+        choices = ", ".join(LANGUAGE_MODEL_CONFIGS)
+        raise ValueError(
+            f"Unsupported language model '{language_model}'. Choose one of: {choices}."
+        ) from error
+
+
+def create_tokenizer(language_model):
+    config = get_language_model_config(language_model)
+    tokenizer = AutoTokenizer.from_pretrained(config["pretrained_name"])
+    tokenizer.pad_token = tokenizer.eos_token
+    return tokenizer
+
+
+def create_lora_config(language_model, dropout=0.1):
+    config = get_language_model_config(language_model)
+    return LoraConfig(
+        task_type=TaskType.CAUSAL_LM,
+        r=8,
+        lora_alpha=16,
+        lora_dropout=dropout,
+        target_modules=config["lora_target_modules"],
+    )
+
+
+def get_artifact_prefix(language_model):
+    return get_language_model_config(language_model)["artifact_prefix"]
+
+
+def add_artifact_prefix(filename, language_model):
+    prefix = get_artifact_prefix(language_model)
+    if filename.lower().startswith(f"{prefix.lower()}_"):
+        return filename
+    return f"{prefix}_{filename}"
 
 class TemporalAttentionAdaptiveGating(nn.Module):
     """
@@ -65,24 +118,42 @@ class TemporalAttentionAdaptiveGating(nn.Module):
         return final_output
 
 class PitVQAGen(nn.Module):
-    def __init__(self, peft_config=None):
+    def __init__(self, language_model="gpt2", peft_config=None, dropout=0.1):
         super(PitVQAGen, self).__init__()
+
+        language_config = get_language_model_config(language_model)
+        self.language_model_name = language_model
 
         model_name = "microsoft/xclip-base-patch32"
         self.visual_encoder = XCLIPModel.from_pretrained(model_name)
-        self.video_proj = nn.Linear(self.visual_encoder.config.vision_config.hidden_size, 768)
-        self.cross_attention_fusion = TemporalAttentionAdaptiveGating(embed_dim=768, num_heads=8, dropout=0.1)
 
         for param in self.visual_encoder.parameters():
             param.requires_grad = False
 
-        self.tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        gpt2_model = GPT2LMHeadModel.from_pretrained('gpt2')
-        self.gpt2_embedding = gpt2_model.transformer.wte
-        self.gpt2_positional = gpt2_model.transformer.wpe
-        self.gpt = get_peft_model(gpt2_model, peft_config)
-        self.gpt.print_trainable_parameters()
+        self.tokenizer = create_tokenizer(language_model)
+        causal_lm = AutoModelForCausalLM.from_pretrained(
+            language_config["pretrained_name"]
+        )
+        hidden_size = causal_lm.config.hidden_size
+        vision_hidden_size = self.visual_encoder.config.vision_config.hidden_size
+
+        self.video_proj = nn.Linear(vision_hidden_size, hidden_size)
+        self.cross_attention_fusion = TemporalAttentionAdaptiveGating(
+            embed_dim=hidden_size,
+            num_heads=8,
+            dropout=dropout,
+        )
+        if language_model == "gpt2":
+            # Keep the original attribute names so existing GPT-2 checkpoints
+            # remain loadable.
+            self.gpt2_embedding = causal_lm.transformer.wte
+            self.gpt2_positional = causal_lm.transformer.wpe
+            self.gpt = get_peft_model(causal_lm, peft_config)
+            self.gpt.print_trainable_parameters()
+        else:
+            # Keep the original Qwen attribute name for the same reason.
+            self.qwen = get_peft_model(causal_lm, peft_config)
+            self.qwen.print_trainable_parameters()
 
     def forward(self, image, qa_inputs_ids, qa_att_mask):
         video = image.to(next(self.parameters()).device)
@@ -94,15 +165,23 @@ class PitVQAGen(nn.Module):
 
         video_embeds = self.video_proj(frame_features) # Shape: [B, T_frames, 768]
 
-        word_embeds = self.gpt2_embedding(qa_inputs_ids)
-        pos_ids = torch.arange(qa_inputs_ids.shape[1], device=qa_inputs_ids.device).unsqueeze(0)
-        pos_embeds = self.gpt2_positional(pos_ids)
-        text_features = word_embeds + pos_embeds
+        if self.language_model_name == "gpt2":
+            text_features = self.gpt2_embedding(qa_inputs_ids)
+            pos_ids = torch.arange(
+                qa_inputs_ids.shape[1], device=qa_inputs_ids.device
+            ).unsqueeze(0)
+            text_features = text_features + self.gpt2_positional(pos_ids)
+            decoder = self.gpt
+        else:
+            # Qwen applies rotary positional information inside its attention
+            # layers, so only token embeddings are fused here.
+            text_features = self.qwen.get_input_embeddings()(qa_inputs_ids)
+            decoder = self.qwen
 
         fused_text_features = self.cross_attention_fusion(video_embeds, text_features)
         
-        gpt_output = self.gpt(
+        language_output = decoder(
             inputs_embeds=fused_text_features,
             attention_mask=qa_att_mask
         )
-        return gpt_output.logits
+        return language_output.logits

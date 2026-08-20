@@ -7,12 +7,16 @@ import numpy as np
 import random
 import warnings
 
-from transformers import GPT2Tokenizer, XCLIPProcessor
-from peft import get_peft_model, TaskType, LoraConfig
+from transformers import XCLIPProcessor
 
 from torch.utils.data import DataLoader
 from dataloader import VideoQADataset, collate_qa_clipwise
-from model import PitVQAGen
+from model import (
+    LANGUAGE_MODEL_CONFIGS,
+    PitVQAGen,
+    add_artifact_prefix,
+    create_lora_config,
+)
 
 warnings.filterwarnings('ignore')
 
@@ -134,13 +138,19 @@ def get_arg():
     parser.add_argument('--random_seed',    type=int,   default=42,   help='random seed')
     parser.add_argument('--seq_length',     type=int,   default=120,   help='sequence length for question and answer')
     parser.add_argument('--dropout', type=float, default=0.1, help='dropout')
+    parser.add_argument(
+        '--language_model', '--lm',
+        choices=LANGUAGE_MODEL_CONFIGS.keys(),
+        default='gpt2',
+        help='causal language-model backbone',
+    )
 
     parser.add_argument('--dataset',        default='endo',  help='endo / pit')
     parser.add_argument('--lr',             type=float, default=2e-5,  help='0.0000001, 0.00000005')
-    parser.add_argument('--checkpoint_dir', default='Cross_Attention/',  help='path to checkpoint')
-    parser.add_argument('--best_ckpt_name', default='SurgicalViVQA.pth', help='best checkpoint filename')
+    parser.add_argument('--checkpoint_dir', default='Checkpoints/',  help='path to checkpoint')
+    parser.add_argument('--best_ckpt_name', default='SurgAnt.pth', help='best checkpoint filename')
 
-    args = parser.parse_args([])
+    args = parser.parse_args()
     return args
 
 if __name__ == '__main__':
@@ -152,6 +162,7 @@ if __name__ == '__main__':
     print(f'Learning rate: {args.lr}')
     print(f'Random seed: {args.random_seed}')
     print(f'Sequence length: {args.seq_length}')
+    print(f'Language model: {args.language_model}')
     print(f'Dropout: {args.dropout}')
     os.makedirs(args.checkpoint_dir, exist_ok = True)
     start_epoch = 1
@@ -165,8 +176,8 @@ if __name__ == '__main__':
     # data location - PitVQA Anticipation dataset
     train_seq = ['01', '03', '04', '05', '07', '08', '09', '10', '11', '14','15', '16', '17', '18', '19', '20', '21', '22', '23', '25']
     val_seq = ['02', '06', '12','13', '24']  
-    image_root = '/SAN/medic/surgicalLLM/content/PitVQA/datasets/PitVQA_Anticipation-25/images'
-    qa_root = '/SAN/medic/surgicalLLM/content/PitVQA/datasets/PitVQA_Anticipation-25/QA_Anticipation'
+    image_root = '.../PitVQA_Anticipation/images'
+    qa_root = '.../PitVQA_Anticipation/QA_Anticipation'
 
     processor = XCLIPProcessor.from_pretrained("microsoft/xclip-base-patch32")
     
@@ -195,18 +206,13 @@ if __name__ == '__main__':
     
     print('training samples:', len(train_dataset), 'validation samples:', len(val_dataset))
 
-    tokenizer = GPT2Tokenizer.from_pretrained('gpt2')
-    tokenizer.pad_token = tokenizer.eos_token
+    lora_config = create_lora_config(args.language_model)
 
-    lora_config = LoraConfig(
-        task_type=TaskType.CAUSAL_LM,
-        r=8,
-        lora_alpha=16,
-        lora_dropout=0.1,
-        target_modules=["c_attn", "c_proj"]
+    model = PitVQAGen(
+        language_model=args.language_model,
+        peft_config=lora_config,
     )
-
-    model = PitVQAGen(peft_config=lora_config)
+    tokenizer = model.tokenizer
     model = model.to(device)
 
     pytorch_total_params = sum(p.numel() for p in model.parameters())
@@ -228,7 +234,10 @@ if __name__ == '__main__':
         if val_loss < best_val_loss:
             epochs_since_improvement = 0
             best_val_loss = val_loss
-            save_dir = f'{args.checkpoint_dir}/{args.best_ckpt_name}'
+            checkpoint_name = add_artifact_prefix(
+                args.best_ckpt_name, args.language_model
+            )
+            save_dir = os.path.join(args.checkpoint_dir, checkpoint_name)
             torch.save(model.state_dict(), save_dir)
             model.tokenizer.save_pretrained(args.checkpoint_dir)
             print('Best validation loss, model saved.')
